@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>もぐらたたき</title>
+    <script type="text/javascript" src="zepto.min.js"></script>
+    <script type="text/javascript">
+        var st, en, score, tid = null; //開始時刻、終了時刻、得点、タイマーID
+        var mole = new Array(16); //もぐらの状態を保存しておく配列 (このプログラムでは未使用。工夫のために使ってね) 
+        var a1 = new Array(4); //もぐらを叩いたときの効果音を入れる配列
+        var a1_cnt = 0; //効果音を鳴らしている配列要素の値
+        for (i = 0; i < 4; i++) {
+            a1[i] = new Audio("whack.mp3"); //多重再生のため 4 個のオブジェクトを作成
+        }
+        function init() {
+            imgs = document.getElementsByName("im");
+            score = 0;
+            document.getElementById("score").innerHTML = score;
+            for (i = 0; i < 16; i++) {
+               var r = Math.random();
+               if(r < 0.4){
+                imgs[i].src = 'mogura.png';
+               } else if(r < 0.5) {
+                imgs[i].src = 'monkey.png';
+               }else{
+                imgs[i].src = 'white.png';
+               }
+            }
+
+        }
+        function game_start() {
+            init();
+            st = new Date().getTime();
+            update();
+            timerInterval = setInterval(showElapsed, 100);
+        }
+        function update() {
+            var idx = parseInt(Math.random() * 16); //ランダムな位置
+            imgs[idx].src = 'mogura.png';
+            setTimeout(function () {
+                if (imgs[idx].src.slice(-10) === 'mogura.png') {
+                    imgs[idx].src = 'white.png';
+                }
+            }, 3000);
+
+            tid = setTimeout("update()", 500); //500 ミリ秒経過後に呼び出す
+        }
+        function whack(i) {
+            if (tid == null) return; //ゲーム中でなければ何もしない
+            if (imgs[i].src.slice(-10) == 'mogura.png') { //クリックしたところがもぐら画像
+                a1[a1_cnt++].play(); //もぐらを叩いたときの効果音を再生。配列を使うと同時に 4 つの音が出せます。 
+                a1_cnt &= 3; // a1_cnt が 0~3 の範囲になるように 4 になったら 0 に戻す
+                imgs[i].src = 'white.png'; //もぐら画像を消す
+                score++;
+                document.getElementById("score").innerHTML = score;
+                if (score >= 30) { //30 点以上になったら終了 
+                    en = new Date().getTime();
+                    clearTimeout(tid);
+                    clearInterval(timerInterval);
+                    tid = null;
+                    time = (en - st) / 1000;
+                    var name = document.cookie.replace(/(?:(?:^|.*;\s*)name\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+                    if (!name) { //名前がまだ登録されていないときは名前を尋ねる
+                        name = prompt("あなたのタイムは" + time + "秒でした\n あなたのお名前を入れてください", "");
+                        document.cookie = "name=" + name + "; max-age=86400";
+                        document.getElementById("name").value = name;
+                    } else {
+                        alert(document.getElementById("name").value + "さんのタイムは" + time + "秒でした。");
+                    }
+                    console.log(document.getElementById("name").value);
+                    $.get("6.php?name=" + encodeURI(document.getElementById("name").value) + "&time=" + time, function () {
+                        ranking();
+                    });
+                }
+            }
+        }
+
+        function ranking() {
+            const _d = new Date().getTime(); //キャッシュ回避のため日時を利用する 
+            $.get("6ranking.php?_d=" + _d, function (data) {
+                var a = data.split("\n"); //改行で区切る
+                var table = "<table border=1 cellspacing=0 cellpadding=2>";
+                table += "<tr><td>順位</td><td>時間</td><td>名前</td><td>日時</td></tr>";
+                for (i = 0; i < a.length - 1; i++) {
+                    var b = a[i].split(","); //カンマで区切る
+                    table += "<tr><td>" + (i + 1) + "</td><td>" + b[2] + "</td><td>" + b[1] + "</td><td>" + b[0] + "</td></tr>";
+                }
+                table += "</table>";
+                document.getElementById("ranking").innerHTML = table;
+            });
+        }
+        window.onload = function () {
+            const name = document.cookie.replace(/(?:(?:^|.*;\s*)name\s*=\s*([^;]*).*$)|^.*$/, "$1");
+            if (name) {
+                document.getElementById("name").value = name;
+            }
+            ranking();
+        };
+        function showElapsed() {
+            var now = new Date().getTime();
+            var elapsed = ((now - st) / 1000).toFixed(1); // 小数1桁まで
+            document.getElementById("elapsed").innerText = elapsed;
+        }
+    </script>
+</head>
+
+<body>
+    <h2 style="text-align: center;">もぐらを 30 匹たたくゲーム。</h2>
+    <p>このゲームは、一定時間内に現れる「もぐら」をクリックして得点を稼ぐゲームです。</p>
+
+    <ul>
+        <li><strong>ゲーム開始:</strong>「ゲーム開始」ボタンをクリック</li>
+        <li><strong>もぐらを叩く:</strong> 画像をクリックしてもぐらを叩きます</li>
+    </ul>
+
+    <h3>ルール</h3>
+    <ul>
+        <li>もぐらが出現したら、すばやくクリックしてください</li>
+        <li>30点を超えるとゲームが終了し、タイムが記録されます</li>
+    </ul>
+    <div style="text-align:center;">
+        名前：<input type="text" id="name" onChange='document.cookie = "name=" + this.value + "; max-age=86400"' 
+            style="padding: 8px 12px; border: 2px solid brown; border-radius: 8px; font-size: 16px;"><br><br>
+    </div>
+    <script type="text/javascript">
+        var name = document.cookie.replace(/(?:(?:^|.*;\s*)name\s*\=\s*([^;]*).*$)|^.*$/, "$1");
+        if (name) { //クッキーに名前が保存されているなら名前を入れる
+            document.getElementById("name").value = name;
+        }
+    </script>
+
+    <div style="display: flex; justify-content: center; align-items: center; text-align:center;">
+        <div style="line-height:0; border:2px; border-radius: 8px; background-color: brown;
+                width: 330px; height: 330px;">
+            <img name="im" onClick="whack(0)" width="80" height="80"><img name="im" onClick="whack(1)" width="80"
+                height="80"><img name="im" onClick="whack(2)" width="80" height="80"><img name="im" onClick="whack(3)"
+                width="80" height="80"><br>
+            <img name="im" onClick="whack(4)" width="80" height="80"><img name="im" onClick="whack(5)" width="80"
+                height="80"><img name="im" onClick="whack(6)" width="80" height="80"><img name="im" onClick="whack(7)"
+                width="80" height="80"><br>
+            <img name="im" onClick="whack(8)" width="80" height="80"><img name="im" onClick="whack(9)" width="80"
+                height="80"><img name="im" onClick="whack(10)" width="80" height="80"><img name="im" onClick="whack(11)"
+                width="80" height="80"><br>
+            <img name="im" onClick="whack(12)" width="80" height="80"><img name="im" onClick="whack(13)" width="80"
+                height="80"><img name="im" onClick="whack(14)" width="80" height="80"><img name="im" onClick="whack(15)"
+                width="80" height="80"><br>
+
+        </div>
+    </div>
+    <div style="text-align: center; margin-top: 30px; margin-bottom: 20px">
+        <p>経過時間：<span id="elapsed">0秒</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;得点:<span id="score"></span> </p>
+       
+        <input type="button" onClick="game_start()" value="ゲーム開始" style="padding: 8px 12px; border: 2px solid brown; border-radius: 8px; font-size: 16px; background-color: white;">
+    </div>
+
+    <br>
+
+    <script type="text/javascript">
+        init();
+    </script>
+    <br>
+    <b>ランキング</b><br>
+    <div id="ranking"></div>
+    <script type="text/javascript">
+        ranking();
+    </script>
+</body>
+
+</html>
